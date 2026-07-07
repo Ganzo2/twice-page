@@ -25,25 +25,10 @@
   <div class="page-header">
     <div class="eyebrow">The Lineup</div>
     <h1>Meet the Members</h1>
-    <p>Nine members, nine stories. Photos below are placeholders — see the README for how to add real ones.</p>
+    <p>Hover a card to see more photos, click to flip for a quick summary, double-click for the full profile.</p>
   </div>
 
-  <div class="member-grid">
-    <!--
-      HOW TO ADD REAL PHOTOS:
-      Replace the letter inside each .avatar div with an <img> tag, e.g.:
-      <div class="avatar"><img src="assets/members/nayeon.jpg" alt="Nayeon"></div>
-    -->
-    <div class="member-card"><div class="avatar">N</div><div class="member-name">Nayeon</div><div class="member-role">Leader / Vocal</div></div>
-    <div class="member-card"><div class="avatar">J</div><div class="member-name">Jeongyeon</div><div class="member-role">Vocal</div></div>
-    <div class="member-card"><div class="avatar">M</div><div class="member-name">Momo</div><div class="member-role">Main Dancer</div></div>
-    <div class="member-card"><div class="avatar">S</div><div class="member-name">Sana</div><div class="member-role">Vocal</div></div>
-    <div class="member-card"><div class="avatar">J</div><div class="member-name">Jihyo</div><div class="member-role">Center / Vocal</div></div>
-    <div class="member-card"><div class="avatar">M</div><div class="member-name">Mina</div><div class="member-role">Dancer</div></div>
-    <div class="member-card"><div class="avatar">D</div><div class="member-name">Dahyun</div><div class="member-role">Rapper</div></div>
-    <div class="member-card"><div class="avatar">C</div><div class="member-name">Chaeyoung</div><div class="member-role">Rapper</div></div>
-    <div class="member-card"><div class="avatar">T</div><div class="member-name">Tzuyu</div><div class="member-role">Maknae / Visual</div></div>
-  </div>
+  <div class="member-grid" id="member-grid"><!-- cards injected by JS --></div>
 </main>
 
 <footer>
@@ -54,5 +39,95 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/members-data.js"></script>
+<script>
+  const grid = document.getElementById('member-grid');
+
+  MEMBERS.forEach(member => {
+    const photos = getMemberPhotos(member.id);
+
+    const card = document.createElement('div');
+    card.className = 'member-card';
+    card.dataset.id = member.id;
+
+    card.innerHTML = `
+      <div class="card-inner">
+        <div class="card-face card-front">
+          <div class="photo-slideshow">
+            ${photos.map((src, i) => `<img class="slide${i === 0 ? ' active' : ''}" src="${src}" alt="${member.name}" data-slide-index="${i}">`).join('')}
+            <div class="slide-fallback">${member.initial}</div>
+            <div class="slide-dots">
+              ${photos.map((_, i) => `<span class="${i === 0 ? 'active' : ''}"></span>`).join('')}
+            </div>
+          </div>
+          <div class="card-info">
+            <div class="member-name">${member.name}</div>
+            <div class="member-role">${member.role}</div>
+          </div>
+        </div>
+        <div class="card-face card-back">
+          <div class="back-content">
+            <h3>${member.name}</h3>
+            <p>${member.summary}</p>
+            <span class="back-hint">Double-click for full profile →</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Hide any <img> that fails to load (keeps the gradient fallback letter visible instead)
+    card.querySelectorAll('.slide').forEach(img => {
+      img.addEventListener('error', () => { img.style.display = 'none'; });
+    });
+
+    // Hover slideshow: cycle through available slides while the mouse is over the card
+    let slideTimer = null;
+    let slideIndex = 0;
+    const slides = card.querySelectorAll('.slide');
+    const dots = card.querySelectorAll('.slide-dots span');
+
+    function showSlide(i){
+      slides.forEach(s => s.classList.remove('active'));
+      dots.forEach(d => d.classList.remove('active'));
+      if(slides[i]) slides[i].classList.add('active');
+      if(dots[i]) dots[i].classList.add('active');
+    }
+
+    card.addEventListener('mouseenter', () => {
+      if(slides.length <= 1) return;
+      slideTimer = setInterval(() => {
+        slideIndex = (slideIndex + 1) % slides.length;
+        showSlide(slideIndex);
+      }, 1100);
+    });
+
+    card.addEventListener('mouseleave', () => {
+      clearInterval(slideTimer);
+      slideIndex = 0;
+      showSlide(0);
+    });
+
+    // Single click = flip, double click = go to detail page.
+    // (Manual timer used instead of native dblclick so both stay reliable together.)
+    let clickCount = 0;
+    let clickTimer = null;
+
+    card.addEventListener('click', () => {
+      clickCount++;
+      if(clickCount === 1){
+        clickTimer = setTimeout(() => {
+          card.classList.toggle('flipped');
+          clickCount = 0;
+        }, 260);
+      } else if(clickCount === 2){
+        clearTimeout(clickTimer);
+        clickCount = 0;
+        window.location.href = `member.html?id=${member.id}`;
+      }
+    });
+
+    grid.appendChild(card);
+  });
+</script>
 </body>
 </html>
