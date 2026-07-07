@@ -9,7 +9,6 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-
 <nav class="site-nav">
   <a href="index.html" class="nav-logo">TWICE</a>
   <ul class="nav-links" id="nav-links">
@@ -20,36 +19,35 @@
   </ul>
   <button class="nav-toggle" id="nav-toggle">&#9776;</button>
 </nav>
-
 <main>
   <div class="detail-wrap" id="detail-wrap" style="padding-top:90px;">
     <a class="detail-back-link" href="members.html">← Back to all members</a>
     <div id="detail-body">Loading…</div>
   </div>
 </main>
-
 <footer>
   Fan-made tribute site · not affiliated with JYP Entertainment · built with Three.js
 </footer>
-
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/members-data.js"></script>
 <script>
-  const params = new URLSearchParams(window.location.search);
-  const id = params.get('id');
-  const member = MEMBERS.find(m => m.id === id);
-  const body = document.getElementById('detail-body');
+  async function renderMemberDetail() {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+    const member = MEMBERS.find(m => m.id === id);
+    const body = document.getElementById('detail-body');
 
-  if(!member){
-    body.innerHTML = `<p>Member not found. <a href="members.html">Go back to the members page</a>.</p>`;
-  } else {
+    if(!member){
+      body.innerHTML = `<p>Member not found. <a href="members.html">Go back to the members page</a>.</p>`;
+      return;
+    }
+
     document.title = `${member.name} — ONCE HQ`;
-    const photos = getMemberPhotos(member.id);
+    const photos = await getMemberPhotos(member.id);
     const mainPhoto = photos[0];
-
     const socialLinks = Object.entries(member.socials)
       .filter(([, url]) => url && url !== '#')
       .map(([platform, url]) => `<a href="${url}" target="_blank" rel="noopener">${platform.charAt(0).toUpperCase() + platform.slice(1)}</a>`)
@@ -75,13 +73,14 @@
       </div>
     `;
 
-    // Try to load a real photo; if it fails, the initial-letter placeholder stays visible
-    const img = new Image();
-    img.onload = () => {
+    // mainPhoto is undefined if the member has zero photos in their folder —
+    // in that case just leave the initial-letter placeholder in place.
+    if (mainPhoto) {
       document.getElementById('detail-photo').innerHTML = `<img src="${mainPhoto}" alt="${member.name}">`;
-    };
-    img.src = mainPhoto;
+    }
   }
+
+  renderMemberDetail();
 </script>
 </body>
 </html>
