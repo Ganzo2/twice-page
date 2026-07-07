@@ -108,22 +108,25 @@
     });
 
     // Single click = flip, double click = go to detail page.
-    // (Manual timer used instead of native dblclick so both stay reliable together.)
-    let clickCount = 0;
+    // e.detail tells us how many clicks happened in quick succession (browser-native,
+    // more reliable than a manual counter): 1 = single click, 2 = second click of a dblclick.
     let clickTimer = null;
 
-    card.addEventListener('click', () => {
-      clickCount++;
-      if(clickCount === 1){
-        clickTimer = setTimeout(() => {
-          card.classList.toggle('flipped');
-          clickCount = 0;
-        }, 260);
-      } else if(clickCount === 2){
+    card.addEventListener('click', (e) => {
+      if(e.detail >= 2){
         clearTimeout(clickTimer);
-        clickCount = 0;
         window.location.href = `member.html?id=${member.id}`;
+        return;
       }
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(() => {
+        card.classList.toggle('flipped');
+      }, 300);
+    });
+
+    // Prevent the double-click from selecting text on the card
+    card.addEventListener('mousedown', (e) => {
+      if(e.detail > 1) e.preventDefault();
     });
 
     grid.appendChild(card);
