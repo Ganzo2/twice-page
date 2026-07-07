@@ -111,7 +111,7 @@ const MEMBERS = [
   }
 ];
 
-// Builds the list of photo paths for a member (assumes up to 3 numbered files)
+// Builds the list of photo paths for a member (assumes up to 4 numbered files)
 function getMemberPhotos(id){
-  return [1, 2, 3].map(n => `assets/members/${id}/${n}.jpg`);
+  return [1, 2, 3, 4].map(n => `assets/members/${id}/${n}.jpg`);
 }
