@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Member Profile — ONCE HQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="index.html" class="nav-logo">TWICE</a>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="members.html">Members</a></li>
+    <li><a href="exclusive.html">Exclusive</a></li>
+    <li id="nav-auth-slot"><a class="nav-cta" href="login.html">Log in</a></li>
+  </ul>
+  <button class="nav-toggle" id="nav-toggle">&#9776;</button>
+</nav>
+
+<main>
+  <div class="detail-wrap" id="detail-wrap" style="padding-top:90px;">
+    <a class="detail-back-link" href="members.html">← Back to all members</a>
+    <div id="detail-body">Loading…</div>
+  </div>
+</main>
+
+<footer>
+  Fan-made tribute site · not affiliated with JYP Entertainment · built with Three.js
+</footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/members-data.js"></script>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  const member = MEMBERS.find(m => m.id === id);
+  const body = document.getElementById('detail-body');
+
+  if(!member){
+    body.innerHTML = `<p>Member not found. <a href="members.html">Go back to the members page</a>.</p>`;
+  } else {
+    document.title = `${member.name} — ONCE HQ`;
+    const photos = getMemberPhotos(member.id);
+    const mainPhoto = photos[0];
+
+    const socialLinks = Object.entries(member.socials)
+      .filter(([, url]) => url && url !== '#')
+      .map(([platform, url]) => `<a href="${url}" target="_blank" rel="noopener">${platform.charAt(0).toUpperCase() + platform.slice(1)}</a>`)
+      .join('');
+
+    body.innerHTML = `
+      <div class="detail-layout">
+        <div class="detail-photo" id="detail-photo">
+          <span>${member.initial}</span>
+        </div>
+        <div class="detail-info">
+          <h1>${member.name}</h1>
+          <div class="detail-role">${member.role}</div>
+          <div class="detail-meta">
+            <div><span>Birthday</span>${member.birthday}</div>
+            <div><span>Position</span>${member.position}</div>
+          </div>
+          <p class="detail-bio">${member.bio}</p>
+          <div class="social-links">
+            ${socialLinks || '<span style="opacity:0.5; font-size:0.85rem;">Social links not added yet — edit js/members-data.js</span>'}
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Try to load a real photo; if it fails, the initial-letter placeholder stays visible
+    const img = new Image();
+    img.onload = () => {
+      document.getElementById('detail-photo').innerHTML = `<img src="${mainPhoto}" alt="${member.name}">`;
+    };
+    img.src = mainPhoto;
+  }
+</script>
+</body>
+</html>
