@@ -42,8 +42,8 @@
 <script>
   const grid = document.getElementById('member-grid');
 
-  MEMBERS.forEach(member => {
-    const photos = getMemberPhotos(member.id);
+  async function renderMemberCard(member) {
+    const photos = await getMemberPhotos(member.id);
 
     const card = document.createElement('div');
     card.className = 'member-card';
@@ -128,8 +128,18 @@
       if(e.detail > 1) e.preventDefault();
     });
 
-    grid.appendChild(card);
-  });
+    return card;
+  }
+
+  async function renderAllMembers() {
+    // Render concurrently (photo checks all fire in parallel) but append
+    // in original member order, so the grid doesn't jump around as each
+    // card's image checks resolve at different speeds.
+    const cards = await Promise.all(MEMBERS.map(renderMemberCard));
+    cards.forEach(card => grid.appendChild(card));
+  }
+
+  renderAllMembers();
 </script>
 </body>
 </html>
