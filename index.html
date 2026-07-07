@@ -18,7 +18,8 @@
     overflow:hidden;
     background:radial-gradient(circle at 50% 20%, var(--plum) 0%, var(--plum-deep) 70%);
   }
-  #hero-canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #hero-canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab; }
+  #hero-canvas:active{ cursor:grabbing; }
   .hero-content{ position:relative; z-index:2; text-align:center; padding:0 20px; pointer-events:none; }
   .hero-content .eyebrow{ opacity:0; animation:fadeUp 1s ease forwards 0.2s; }
   .logo-text{
@@ -143,10 +144,13 @@
   const canvas = document.getElementById('hero-canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.1, 100);
-  camera.position.set(0, 0, 14);
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0.4, 12.5);
 
   function resize(){
     const w = canvas.parentElement.clientWidth;
@@ -158,57 +162,226 @@
   resize();
   window.addEventListener('resize', resize);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+  // ---------- Lighting ----------
+  scene.add(new THREE.HemisphereLight(0xfff3e8, 0x2a1530, 0.55));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  keyLight.position.set(4, 7, 6);
+  scene.add(keyLight);
   const pinkLight = new THREE.PointLight(0xff6f91, 3, 40);
   pinkLight.position.set(-6, 4, 6);
   scene.add(pinkLight);
-  const goldLight = new THREE.PointLight(0xffd166, 2.5, 40);
+  const goldLight = new THREE.PointLight(0xffd166, 2.2, 40);
   goldLight.position.set(6, -3, 6);
   scene.add(goldLight);
 
-  const particleCount = 260;
+  // ---------- Ambient particle field ----------
+  const particleCount = 220;
   const positions = new Float32Array(particleCount * 3);
   const colors = new Float32Array(particleCount * 3);
   const palette = [new THREE.Color(0xff6f91), new THREE.Color(0xffb37b), new THREE.Color(0xffd166)];
-
   for(let i=0; i<particleCount; i++){
     positions[i*3]   = (Math.random()-0.5) * 30;
     positions[i*3+1] = (Math.random()-0.5) * 18;
-    positions[i*3+2] = (Math.random()-0.5) * 20 - 4;
+    positions[i*3+2] = (Math.random()-0.5) * 20 - 6;
     const c = palette[Math.floor(Math.random()*palette.length)];
     colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
   }
-
   const particleGeo = new THREE.BufferGeometry();
   particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   particleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  const particleMat = new THREE.PointsMaterial({ size:0.14, vertexColors:true, transparent:true, opacity:0.85, depthWrite:false });
+  const particleMat = new THREE.PointsMaterial({ size:0.14, vertexColors:true, transparent:true, opacity:0.75, depthWrite:false });
   const particles = new THREE.Points(particleGeo, particleMat);
   scene.add(particles);
 
-  const ribbonGeo = new THREE.TorusKnotGeometry(3.1, 0.28, 180, 24, 2, 3);
-  const ribbonMat = new THREE.MeshStandardMaterial({ color:0xffffff, metalness:0.3, roughness:0.25, emissive:0xff6f91, emissiveIntensity:0.15 });
-  const ribbon = new THREE.Mesh(ribbonGeo, ribbonMat);
-  ribbon.position.set(0, -0.5, -3);
-  ribbon.scale.set(0.9, 0.9, 0.9);
-  scene.add(ribbon);
+  // ---------- Studio environment map (for metal + glass reflections) ----------
+  const pmremGenerator = new THREE.PMREMGenerator(renderer);
+  pmremGenerator.compileEquirectangularShader();
 
+  const envCanvas = document.createElement('canvas');
+  envCanvas.width = 256; envCanvas.height = 256;
+  const ectx = envCanvas.getContext('2d');
+  const grad = ectx.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, '#fff6ef');
+  grad.addColorStop(0.35, '#ffd9c2');
+  grad.addColorStop(0.7, '#5b3350');
+  grad.addColorStop(1, '#180d20');
+  ectx.fillStyle = grad;
+  ectx.fillRect(0, 0, 256, 256);
+  const hl = ectx.createRadialGradient(128, 55, 0, 128, 55, 100);
+  hl.addColorStop(0, 'rgba(255,255,255,0.95)');
+  hl.addColorStop(1, 'rgba(255,255,255,0)');
+  ectx.fillStyle = hl;
+  ectx.fillRect(0, 0, 256, 256);
+  const envTex = new THREE.CanvasTexture(envCanvas);
+  envTex.mapping = THREE.EquirectangularReflectionMapping;
+  envTex.encoding = THREE.sRGBEncoding;
+
+  const envScene = new THREE.Scene();
+  const envMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(40, 32, 32),
+    new THREE.MeshBasicMaterial({ map: envTex, side: THREE.BackSide })
+  );
+  envScene.add(envMesh);
+  const envMap = pmremGenerator.fromScene(envScene, 0.04).texture;
+  scene.environment = envMap;
+  pmremGenerator.dispose();
+
+  // ---------- Materials ----------
+  const metalMat = new THREE.MeshPhysicalMaterial({
+    color: 0x9a9ba0, metalness: 1, roughness: 0.22,
+    envMapIntensity: 1.3, clearcoat: 0.4, clearcoatRoughness: 0.25
+  });
+  const gripMat = new THREE.MeshPhysicalMaterial({
+    color: 0x6d6e72, metalness: 0.9, roughness: 0.42, envMapIntensity: 1.1
+  });
+  const ridgeMat = new THREE.MeshPhysicalMaterial({
+    color: 0x4c4d50, metalness: 0.7, roughness: 0.5, envMapIntensity: 1
+  });
+  const plasticBlackMat = new THREE.MeshPhysicalMaterial({
+    color: 0x121214, metalness: 0.05, roughness: 0.5,
+    envMapIntensity: 0.7, clearcoat: 0.2, clearcoatRoughness: 0.3
+  });
+  const grooveMat = new THREE.MeshPhysicalMaterial({
+    color: 0x2c2c2e, metalness: 0.2, roughness: 0.45, envMapIntensity: 0.8
+  });
+  const glassMat = new THREE.MeshPhysicalMaterial({
+    color: 0xf6f6f8, metalness: 0, roughness: 0.06,
+    transmission: 0.85, transparent: true, opacity: 0.4,
+    thickness: 0.4, ior: 1.45, envMapIntensity: 1.6,
+    clearcoat: 0.6, clearcoatRoughness: 0.1
+  });
+  const glowMat = new THREE.MeshPhysicalMaterial({
+    color: 0xff3b30, emissive: 0xff5a3c, emissiveIntensity: 1.8,
+    metalness: 0.1, roughness: 0.35, envMapIntensity: 1
+  });
+
+  // ---------- Printed "TWICE" wordmark texture ----------
+  const wmCanvas = document.createElement('canvas');
+  wmCanvas.width = 1024; wmCanvas.height = 160;
+  const wctx = wmCanvas.getContext('2d');
+  wctx.clearRect(0, 0, 1024, 160);
+  wctx.fillStyle = '#f0f0f2';
+  wctx.font = '700 84px Poppins, Arial, sans-serif';
+  wctx.textAlign = 'center';
+  wctx.textBaseline = 'middle';
+  wctx.fillText('T W I C E', 512, 82);
+  const wmTex = new THREE.CanvasTexture(wmCanvas);
+  wmTex.encoding = THREE.sRGBEncoding;
+  const wmMat = new THREE.MeshBasicMaterial({ map: wmTex, transparent: true, side: THREE.DoubleSide });
+
+  // ---------- Lightstick group ----------
+  const stick = new THREE.Group();
+
+  const handleUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 2.6, 48), metalMat);
+  handleUpper.position.y = -1.3;
+  stick.add(handleUpper);
+
+  const jointRing = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.18, 48), gripMat);
+  jointRing.position.y = -2.7;
+  stick.add(jointRing);
+
+  const handleLower = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.38, 3.0, 48), gripMat);
+  handleLower.position.y = -4.35;
+  stick.add(handleLower);
+
+  const capMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.34, 0.3, 48), gripMat);
+  capMesh.position.y = -5.95;
+  stick.add(capMesh);
+
+  for (let i = 0; i < 6; i++) {
+    const ridge = new THREE.Mesh(new THREE.TorusGeometry(0.405, 0.018, 8, 48), ridgeMat);
+    ridge.rotation.x = Math.PI / 2;
+    ridge.position.y = -3.6 - i * 0.3;
+    stick.add(ridge);
+  }
+
+  // wrap the wordmark around the lower handle, front-facing arc
+  const wordmark = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.403, 0.403, 0.32, 64, 1, true, -0.9, 1.8),
+    wmMat
+  );
+  wordmark.position.y = -4.5;
+  stick.add(wordmark);
+
+  // head disc
+  const headY = 1.1;
+  const discOuter = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 1.9, 0.5, 64), plasticBlackMat);
+  discOuter.rotation.x = Math.PI / 2;
+  discOuter.position.y = headY;
+  stick.add(discOuter);
+
+  for (let i = 0; i < 4; i++) {
+    const r = 1.55 - i * 0.32;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.03, 8, 64), grooveMat);
+    ring.position.y = headY + 0.26;
+    stick.add(ring);
+  }
+
+  const centerCap = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.08, 48), plasticBlackMat);
+  centerCap.rotation.x = Math.PI / 2;
+  centerCap.position.y = headY + 0.28;
+  stick.add(centerCap);
+
+  // frosted glass dome over the face
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(1.9, 48, 24, 0, Math.PI * 2, 0, Math.PI * 0.34),
+    glassMat
+  );
+  dome.rotation.x = Math.PI;
+  dome.position.y = headY + 0.32;
+  stick.add(dome);
+
+  // glowing outer LED ring
+  const glowRing = new THREE.Mesh(new THREE.TorusGeometry(1.78, 0.22, 32, 96), glowMat);
+  glowRing.position.y = headY;
+  stick.add(glowRing);
+
+  const glowPointLight = new THREE.PointLight(0xff5a3c, 1.6, 8);
+  glowPointLight.position.set(0, headY, 0.6);
+  stick.add(glowPointLight);
+
+  stick.position.set(0, -0.3, -1);
+  stick.scale.set(1.05, 1.05, 1.05);
+  scene.add(stick);
+
+  // ---------- Interaction: drag to rotate, mouse parallax otherwise ----------
+  let dragging = false, lastX = 0, lastY = 0;
+  let dragRotY = 0, dragRotX = 0.05;
   let mouseX = 0, mouseY = 0;
-  window.addEventListener('mousemove', (e) => {
+
+  canvas.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  window.addEventListener('pointerup', () => { dragging = false; });
+  window.addEventListener('pointermove', (e) => {
     mouseX = (e.clientX / window.innerWidth - 0.5);
     mouseY = (e.clientY / window.innerHeight - 0.5);
+    if (dragging) {
+      const dx = e.clientX - lastX, dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      dragRotY += dx * 0.008;
+      dragRotX = Math.max(-0.6, Math.min(0.6, dragRotX + dy * 0.006));
+    }
   });
 
   const clock = new THREE.Clock();
   function animate(){
     const t = clock.getElapsedTime();
-    ribbon.rotation.x = t * 0.15;
-    ribbon.rotation.y = t * 0.22;
+    if (!dragging) {
+      dragRotY += 0.0022;
+    }
+    stick.rotation.y = dragRotY;
+    stick.rotation.x = dragRotX;
+    stick.position.y = -0.3 + Math.sin(t * 0.6) * 0.06;
+
     particles.rotation.y = t * 0.02;
     particles.rotation.x = Math.sin(t * 0.05) * 0.05;
+
     camera.position.x += (mouseX * 2 - camera.position.x) * 0.02;
-    camera.position.y += (-mouseY * 1.2 - camera.position.y) * 0.02;
-    camera.lookAt(0,0,0);
+    camera.position.y += (-mouseY * 1.2 + 0.4 - camera.position.y) * 0.02;
+    camera.lookAt(0, 0, 0);
+
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
   }
