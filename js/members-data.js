@@ -146,5 +146,5 @@ const MEMBERS = [
 
 // Builds the list of photo paths for a member
 function getMemberPhotos(id) {
-  return [1, 2, 3, 4].map(n => `assets/members/${id}/${n}.jpg`);
+  return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `assets/members/${id}/${n}.jpg`);
 }
