@@ -1,3 +1,5 @@
+const MAX_MEMBER_PHOTOS = 10;
+
 const MEMBERS = [
   {
     id: 'nayeon',
@@ -144,7 +146,31 @@ const MEMBERS = [
   }
 ];
 
-// Builds the list of photo paths for a member
-function getMemberPhotos(id) {
-  return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `assets/members/${id}/${n}.jpg`);
+/**
+ * Checks whether a single image URL actually loads.
+ * Resolves the path on success, resolves null on failure — never rejects,
+ * so Promise.all() below can't short-circuit on a missing file.
+ */
+function checkImageExists(path) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(path);
+    img.onerror = () => resolve(null);
+    img.src = path;
+  });
+}
+
+/**
+ * Returns a Promise resolving to only the photo paths that actually exist
+ * for a given member, checking up to MAX_MEMBER_PHOTOS (10) files.
+ * Order is preserved (1.jpg, 2.jpg, ... in sequence), gaps are skipped.
+ */
+async function getMemberPhotos(id) {
+  const candidates = Array.from(
+    { length: MAX_MEMBER_PHOTOS },
+    (_, i) => `assets/members/${id}/${i + 1}.jpg`
+  );
+
+  const results = await Promise.all(candidates.map(checkImageExists));
+  return results.filter(Boolean);
 }
